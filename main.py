@@ -2,17 +2,23 @@
 # Original game        : Copyright 1982 Atari, Inc. (Atari 2600)
 # Designer             : Howard Scott Warshaw
 # Artist               : Jerome Domurat
-# Python Remake Author : Yann Wojciechowski
+# Python Remake Author : Yann W.
 # This is an unofficial remake created for educational and non-commercial purposes.
 
+# main.py
 import pygame
-from graphics import draw_background, draw_center_area
+from graphics import draw_background, draw_center_area, LIGHT_BLUE2_HEIGHT
 from player import ET
 
 # constants
 SCREEN_WIDTH = 960
 SCREEN_HEIGHT = 566
 FPS = 60
+
+# images
+et_head_title_image = pygame.image.load("assets/images/title/et_head_title.png")
+et_title_image = pygame.image.load("assets/images/title/et_title.png")
+copyright_title_image = pygame.image.load("assets/images/title/copyright_atari.png")
 
 # init
 pygame.init()
@@ -56,6 +62,32 @@ while running:
         # title screen: draw E.t logo and wait for space key to start the game
         draw_background(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game_state)
         draw_center_area(screen, SCREEN_WIDTH, "TITLE")
+
+        # get the position and size of the central blue screen area
+        center_x, center_y, center_width, center_height = draw_center_area(screen, SCREEN_WIDTH, "TITLE")
+
+        # draw the E.T. title logo
+        et_title_rect = et_title_image.get_rect(midtop=(
+            center_x + center_width // 2 - 15,
+            center_y + 53
+        ))
+        screen.blit(et_title_image, et_title_rect)
+
+        # draw the E.T. head image
+        et_head_title_rect = et_head_title_image.get_rect(midbottom=(
+            center_x + center_width // 2 - 4,
+            center_y + center_height - 63
+        ))
+        screen.blit(et_head_title_image, et_head_title_rect)
+
+        # draw the copyright image centered in the light blue bottom bar
+        copyright_rect = copyright_title_image.get_rect(
+            center=(
+                SCREEN_WIDTH // 2,
+                SCREEN_HEIGHT - LIGHT_BLUE2_HEIGHT // 2 
+            )
+        )
+        screen.blit(copyright_title_image, copyright_rect)
 
         # play music only once when entering the title screen
         if not music_playing:

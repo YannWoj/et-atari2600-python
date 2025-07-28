@@ -15,19 +15,27 @@ SCREEN_WIDTH = 960
 SCREEN_HEIGHT = 566
 FPS = 60
 
-# images
-et_head_title_image = pygame.image.load("assets/images/title/et_head_title.png")
-et_title_image = pygame.image.load("assets/images/title/et_title.png")
-copyright_title_image = pygame.image.load("assets/images/title/copyright_atari.png")
-
 # init
 pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("E.T. the Extra-Terrestrial (Atari 2600 Remake)")
 clock = pygame.time.Clock()
 
+# images
+# title
+et_head_title_image = pygame.image.load("assets/images/title/et_head_title.png")
+et_title_image = pygame.image.load("assets/images/title/et_title.png")
+copyright_title_image = pygame.image.load("assets/images/title/copyright_atari.png")
+# forest1
+forest1_image = pygame.image.load("assets/images/forest/forest1.png")
+
+# sounds
+# E.T.
+et_walk = pygame.mixer.Sound("assets/sounds/E.T/walk.wav")
+et_run = pygame.mixer.Sound("assets/sounds/E.T/run.wav")
+
 # game states:
-# TITLE   : screen with ET's head (first screen)
+# TITLE   : screen with E.T's head (first screen)
 # FOREST1 :
 # FOREST2 :
 # FOREST3 :
@@ -45,7 +53,7 @@ pygame.mixer.music.load("assets/music/title_music.wav")
 pygame.mixer.music.play(-1)  # -1 = infinite loop
 
 # get E.t centered
-et = ET((SCREEN_WIDTH - 48) // 2, (SCREEN_HEIGHT - 48) // 2)
+et = ET((SCREEN_WIDTH - 48) // 2, (SCREEN_HEIGHT - 48) // 2, et_walk, et_run)
 
 # main loop
 running = True
@@ -104,7 +112,8 @@ while running:
     # forest1 screen:
     elif game_state == "FOREST1":
         draw_background(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game_state)
-        draw_center_area(screen, SCREEN_WIDTH, "FOREST1")
+        center_x, center_y, center_width, center_height = draw_center_area(screen, SCREEN_WIDTH, "FOREST1")
+        screen.blit(forest1_image, (center_x, center_y))
         et.handle_input(keys)
         et.draw(screen)
 

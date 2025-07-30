@@ -22,29 +22,14 @@ pygame.display.set_caption("E.T. the Extra-Terrestrial (Atari 2600 Remake)")
 clock = pygame.time.Clock()
 
 # images
-# title
+# title screen images
 et_head_title_image = pygame.image.load("assets/images/title/et_head_title.png")
 et_title_image = pygame.image.load("assets/images/title/et_title.png")
 copyright_title_image = pygame.image.load("assets/images/title/copyright_atari.png")
-# forest1
+
+# game screen images
 forest1_image = pygame.image.load("assets/images/forest/forest1.png")
-
-# sounds
-# E.T.
-et_walk = pygame.mixer.Sound("assets/sounds/E.T/walk.wav")
-et_run = pygame.mixer.Sound("assets/sounds/E.T/run.wav")
-
-# game states:
-# TITLE   : screen with E.T's head (first screen)
-# FOREST1 :
-# FOREST2 :
-# FOREST3 :
-# FOREST4 :
-# FOREST5 :
-# BUILDING: screen with white columns and a house
-# PIT     : screen with pit
-# HOUSE   : screen with house on dark blue background (last screen)
-game_state = "TITLE" # initial game state (start with title screen)
+pit_image = pygame.image.load("assets/images/pit/pit.png")
 
 # music
 pygame.mixer.init()
@@ -52,13 +37,24 @@ music_playing = False
 pygame.mixer.music.load("assets/music/title_music.wav")
 pygame.mixer.music.play(-1)  # -1 = infinite loop
 
-# get E.t centered
-et = ET((SCREEN_WIDTH - 48) // 2, (SCREEN_HEIGHT - 48) // 2, et_walk, et_run)
+# sound effects
+# E.T.
+et_walk = pygame.mixer.Sound("assets/sounds/E.T/walk.wav")
+et_run = pygame.mixer.Sound("assets/sounds/E.T/run.wav")
+et_head_raise = pygame.mixer.Sound("assets/sounds/E.T/head_raise.wav")
+et_head_raise.set_volume(0.75)
+et_fall = pygame.mixer.Sound("assets/sounds/E.T/fall.wav")
+
+# game states (TITLE/FOREST1/FOREST2/FOREST3/FOREST4/FOREST5/FOREST6/BUILDING/PIT/HOUSE):
+game_state = "TITLE" # initial game state (start with title screen)
+
+# get E.T. centered
+et = ET((SCREEN_WIDTH - 48) // 2, (SCREEN_HEIGHT - 48) // 2, et_walk, et_run, et_head_raise)
 
 # main loop
 running = True
 while running:
-
+    # track single space key presses
     space_pressed_once = False
     
     for event in pygame.event.get():
@@ -71,30 +67,30 @@ while running:
     # get pressed keys
     keys = pygame.key.get_pressed()
 
-    # handle game states and draw the correct screen content
+    # handle different game screens
     if game_state == "TITLE":
-        # title screen: draw E.t logo and wait for space key to start the game
+        # show title screen with E.T. logo
         draw_background(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game_state)
         draw_center_area(screen, SCREEN_WIDTH, "TITLE")
 
-        # get the position and size of the central blue screen area
+        # get center area dimensions for positioning
         center_x, center_y, center_width, center_height = draw_center_area(screen, SCREEN_WIDTH, "TITLE")
 
-        # draw the E.T. title logo
+        # draw E.T. title logo
         et_title_rect = et_title_image.get_rect(midtop=(
             center_x + center_width // 2 - 15,
             center_y + 53
         ))
         screen.blit(et_title_image, et_title_rect)
 
-        # draw the E.T. head image
+        # draw E.T. head image
         et_head_title_rect = et_head_title_image.get_rect(midbottom=(
             center_x + center_width // 2 - 4,
             center_y + center_height - 63
         ))
         screen.blit(et_head_title_image, et_head_title_rect)
 
-        # draw the copyright image centered in the light blue bottom bar
+        # draw copyright notice in bottom bar
         copyright_rect = copyright_title_image.get_rect(
             center=(
                 SCREEN_WIDTH // 2,
@@ -103,13 +99,13 @@ while running:
         )
         screen.blit(copyright_title_image, copyright_rect)
 
-        # play music only once when entering the title screen
+        # start music when entering title screen
         if not music_playing:
             pygame.mixer.music.load("assets/music/title_music.wav")
             pygame.mixer.music.play(-1)
             music_playing = True
 
-        # switch to the forest screen when space is pressed and stop title music
+        # start game when space is pressed
         if keys[pygame.K_SPACE]:
             game_state = "FOREST1"
             pygame.mixer.music.stop()
@@ -121,7 +117,33 @@ while running:
         center_x, center_y, center_width, center_height = draw_center_area(screen, SCREEN_WIDTH, "FOREST1")
         screen.blit(forest1_image, (center_x, center_y))
         et.handle_input(keys, space_pressed_once)
-        et.draw(screen)
+        
+        # check if E.T. walks off right edge to fall into pit
+        if et.x > center_x + center_width - et.image.get_width():
+            # position E.T. at top center of pit
+            et.x = center_x + (center_width - et.image.get_width()) // 2
+            et.y = center_y
+            et_fall.play()
+
+            # reset position and start falling animation
+            et.x = center_x + (center_width - et.image.get_width()) // 2
+            et.y = center_y
+            et.is_falling_into_pit = True
+            et.pit_target_y = center_y + 360 - et.image.get_height()
+
+            # set pit boundaries
+            et.pit_escape_y = center_y  # top edge for escaping
+            et.pit_bottom_y = center_y + 360  # bottom platform
+            et.rising_out_of_pit = False
+
+            # switch to pit screen
+            game_state = "PIT"
+            
+            # set horizontal movement limits inside pit
+            et.pit_left_limit = center_x + 192
+            et.pit_right_limit = center_x + center_width - 192 - et.image.get_width()
+        else:
+            et.draw(screen)
 
     # forest2 screen:
     elif game_state == "FOREST2":
@@ -158,11 +180,16 @@ while running:
         et.handle_input(keys, space_pressed_once)
         et.draw(screen)
 
-    # pit screen:
+    # pit screen  - E.T. can levitate to escape:
     elif game_state == "PIT":
-        draw_background(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game_state)
-        draw_center_area(screen, SCREEN_WIDTH, "PIT")
-        et.handle_input(keys, space_pressed_once)
+        draw_background(screen, SCREEN_WIDTH, SCREEN_HEIGHT, "TITLE")  # TITLE to get black borders
+        center_x, center_y, center_width, center_height = draw_center_area(screen, SCREEN_WIDTH, "PIT")
+        screen.blit(pit_image, (center_x, center_y))
+        result = et.handle_input(keys, space_pressed_once)
+        if result == "ESCAPE_PIT":
+            game_state = "FOREST2"
+            et.in_pit = False
+            et.rising_out_of_pit = False
         et.draw(screen)
 
     # house screen:
@@ -172,6 +199,7 @@ while running:
         et.handle_input(keys, space_pressed_once)
         et.draw(screen)
 
+    # update display and maintain framerate
     pygame.display.flip()
     clock.tick(FPS)
 

@@ -32,9 +32,11 @@ def draw_background(screen, screen_width, screen_height, state):
         background_color = DARK_GREEN
         top_black = GAME_TOP_BLACK_HEIGHT
         bottom_black = GAME_BOTTOM_BLACK_HEIGHT
-
+        
+    # fill screen with chosen background color
     screen.fill(background_color)
 
+    # DRAW THE STATIC FRAME ELEMENTS
     # draw purple bar at the top
     pygame.draw.rect(screen, PURPLE, (0, 0, screen_width, PURPLE_HEIGHT))
     # draw light blue bar at the bottom
@@ -75,7 +77,7 @@ def draw_center_area(screen, screen_width, state):
     elif state == "BUILDING":
         color = (60, 100, 200)
     elif state == "PIT":
-        color = (120, 120, 120)
+        color = BLACK
     elif state == "HOUSE":
         color = (10, 10, 60)
     else:

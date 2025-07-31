@@ -46,6 +46,9 @@ class ET:
         self.moving = False
         self.is_running = False
 
+        # visibility and playability control during the intro
+        self.is_controllable = False  # E.T. is not playable until the spaceship has disappeared.
+
         # head raising (used for levitation)
         self.head_raise_active = False
         self.head_raise_frame = 0
@@ -72,8 +75,21 @@ class ET:
         self.finish_frame = 4
         self.finish_counter = 0
 
+    def set_controllable(self, controllable):
+        # defines whether E.T. can be controlled by the player
+        self.is_controllable = controllable
 
     def handle_input(self, keys, space_pressed_once):
+
+        # if E.T. is not yet controllable, ignore all inputs
+        if not self.is_controllable:
+            # allow only visual direction change during descent
+            if keys[pygame.K_RIGHT]:
+                self.image = pygame.transform.flip(self.images["idle"], True, False)
+            else:
+                self.image = self.images["idle"]  # look left by default
+            return
+
         # block all movement when head raise animation is playing (except in pit)
         if self.head_raise_active and not self.in_pit:
             self.head_raise_counter += 1
@@ -345,11 +361,38 @@ class ET:
         if keys[pygame.K_RIGHT]:
             self.image = pygame.transform.flip(self.image, True, False)
 
-    def draw(self, screen):
-        # draw E.T. positioned from his feet (bottom of idle sprite)
-        idle_height = self.images["idle"].get_height()
-        image_height = self.image.get_height()
-        height_diff = image_height - idle_height
-        draw_y = self.y - height_diff
-
-        screen.blit(self.image, (self.x, draw_y))
+    def draw(self, screen, spaceship=None):
+        # if E.T. is in the spaceship during intro, apply the same clipping
+        if spaceship is not None and spaceship.is_et_in_spaceship():
+            # visible zone starts at y = 71 (top of playable screen)
+            visible_zone_top = 71
+            
+            # calculate E.T.'s drawing position
+            idle_height = self.images["idle"].get_height()
+            image_height = self.image.get_height()
+            height_diff = image_height - idle_height
+            draw_y = self.y - height_diff
+            
+            # if E.T. is completely above the visible zone
+            if draw_y + image_height <= visible_zone_top:
+                return  # draw nothing
+            
+            # if E.T. is partially or completely visible
+            if draw_y < visible_zone_top:
+                # top part cut - calculate which part to draw
+                cut_top = visible_zone_top - draw_y
+                visible_height = image_height - cut_top
+                
+                # create subsurface (visible part only)
+                visible_part = self.image.subsurface(0, cut_top, self.image.get_width(), visible_height)
+                screen.blit(visible_part, (self.x, visible_zone_top))
+            else:
+                # E.T. completely visible
+                screen.blit(self.image, (self.x, draw_y))
+        else:
+            # normal E.T. display
+            idle_height = self.images["idle"].get_height()
+            image_height = self.image.get_height()
+            height_diff = image_height - idle_height
+            draw_y = self.y - height_diff
+            screen.blit(self.image, (self.x, draw_y))

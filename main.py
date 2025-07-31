@@ -1,14 +1,15 @@
 # E.T. THE EXTRA-TERRESTRIAL (Python Remake)
-# Original game        : Copyright 1982 Atari, Inc. (Atari 2600)
-# Designer             : Howard Scott Warshaw
-# Artist               : Jerome Domurat
-# Python Remake Author : Yann W.
+# Original game        ; Copyright 1982 Atari, Inc. (Atari 2600)
+# Designer             ; Howard Scott Warshaw
+# Artist               ; Jerome Domurat
+# Python Remake Author ; Yann W.
 # This is an unofficial remake created for educational and non-commercial purposes.
 
 # main.py
 import pygame
 from graphics import draw_background, draw_center_area, LIGHT_BLUE2_HEIGHT
 from player import ET
+from spaceship import Spaceship
 
 # constants
 SCREEN_WIDTH = 960
@@ -39,17 +40,21 @@ pygame.mixer.music.play(-1)  # -1 = infinite loop
 
 # sound effects
 # E.T.
-et_walk = pygame.mixer.Sound("assets/sounds/E.T/walk.wav")
-et_run = pygame.mixer.Sound("assets/sounds/E.T/run.wav")
-et_head_raise = pygame.mixer.Sound("assets/sounds/E.T/head_raise.wav")
-et_head_raise.set_volume(0.75)
-et_fall = pygame.mixer.Sound("assets/sounds/E.T/fall.wav")
+et_walk_sound = pygame.mixer.Sound("assets/sounds/E.T/walk.wav")
+et_run_sound = pygame.mixer.Sound("assets/sounds/E.T/run.wav")
+et_head_raise_sound = pygame.mixer.Sound("assets/sounds/E.T/head_raise.wav")
+et_head_raise_sound.set_volume(0.75)
+et_fall_sound = pygame.mixer.Sound("assets/sounds/E.T/fall.wav")
+# spaceship
+spaceship_sound = pygame.mixer.Sound("assets/sounds/spaceship/spaceship.wav")
 
 # game states (TITLE/FOREST1/FOREST2/FOREST3/FOREST4/FOREST5/FOREST6/BUILDING/PIT/HOUSE):
 game_state = "TITLE" # initial game state (start with title screen)
 
-# get E.T. centered
-et = ET((SCREEN_WIDTH - 48) // 2, (SCREEN_HEIGHT - 48) // 2, et_walk, et_run, et_head_raise)
+# load instances
+et = ET((SCREEN_WIDTH - 48) // 2, (SCREEN_HEIGHT - 48) // 2, et_walk_sound, et_run_sound, et_head_raise_sound)
+spaceship = Spaceship((SCREEN_WIDTH - 96) // 2, 100)
+intro_sequence_active = False
 
 # main loop
 running = True
@@ -110,40 +115,88 @@ while running:
             game_state = "FOREST1"
             pygame.mixer.music.stop()
             music_playing = False
+            
+            # initialize the intro sequence with the spaceship
+            intro_sequence_active = True
+            center_x, center_y, center_width, center_height = draw_center_area(screen, SCREEN_WIDTH, "FOREST1")
+            spaceship.reset_for_new_game(center_x + (center_width - 96) // 2, center_y)
+            
+            # initial position of E.T. in the ship
+            et_x, et_y = spaceship.get_et_position()
+            et.x = et_x
+            et.y = et_y
+            
+            # play ship sound
+            spaceship_sound.play()
 
     # forest1 screen:
     elif game_state == "FOREST1":
         draw_background(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game_state)
         center_x, center_y, center_width, center_height = draw_center_area(screen, SCREEN_WIDTH, "FOREST1")
         screen.blit(forest1_image, (center_x, center_y))
-        et.handle_input(keys, space_pressed_once)
         
-        # check if E.T. walks off right edge to fall into pit
-        if et.x > center_x + center_width - et.image.get_width():
-            # position E.T. at top center of pit
-            et.x = center_x + (center_width - et.image.get_width()) // 2
-            et.y = center_y
-            et_fall.play()
-
-            # reset position and start falling animation
-            et.x = center_x + (center_width - et.image.get_width()) // 2
-            et.y = center_y
-            et.is_falling_into_pit = True
-            et.pit_target_y = center_y + 360 - et.image.get_height()
-
-            # set pit boundaries
-            et.pit_escape_y = center_y  # top edge for escaping
-            et.pit_bottom_y = center_y + 360  # bottom platform
-            et.rising_out_of_pit = False
-
-            # switch to pit screen
-            game_state = "PIT"
+        # manage spaceship intro sequence
+        if intro_sequence_active:
+            # update spaceship
+            spaceship.update(center_y)
             
-            # set horizontal movement limits inside pit
-            et.pit_left_limit = center_x + 192
-            et.pit_right_limit = center_x + center_width - 192 - et.image.get_width()
+            # if E.T. is still in spaceship
+            if spaceship.is_et_in_spaceship():
+                # E.T. follows spaceship
+                et_x, et_y = spaceship.get_et_position()
+                et.x = et_x
+                et.y = et_y
+                
+                # E.T. can only look right/left during descent
+                if keys[pygame.K_RIGHT]:
+                    et.image = pygame.transform.flip(et.images["idle"], True, False)
+                else:
+                    et.image = et.images["idle"]  # look left by default
+                    
+            else:
+                # E.T. has been dropped, wait for spaceship to disappear
+                if not spaceship.is_visible():
+                    intro_sequence_active = False
+                    # E.T. becomes controllable only when the ship has completely disappeared
+                    et.set_controllable(True)
+                
+                # E.T. can now be controlled normally
+                et.handle_input(keys, space_pressed_once)
+            
+            # draw spaceship
+            spaceship.draw(screen)
+            
         else:
-            et.draw(screen)
+            # normal gameplay - E.T. is controllable
+            et.handle_input(keys, space_pressed_once)
+            
+            # check if E.T. walks off right edge to fall into pit
+            if et.x > center_x + center_width - et.image.get_width():
+                # position E.T. at top center of pit
+                et.x = center_x + (center_width - et.image.get_width()) // 2
+                et.y = center_y
+                et_fall_sound.play()
+
+                # reset position and start falling animation
+                et.x = center_x + (center_width - et.image.get_width()) // 2
+                et.y = center_y
+                et.is_falling_into_pit = True
+                et.pit_target_y = center_y + 360 - et.image.get_height()
+
+                # set pit boundaries
+                et.pit_escape_y = center_y  # top edge for escaping
+                et.pit_bottom_y = center_y + 360  # bottom platform
+                et.rising_out_of_pit = False
+
+                # switch to pit screen
+                game_state = "PIT"
+                
+                # set horizontal movement limits inside pit
+                et.pit_left_limit = center_x + 192
+                et.pit_right_limit = center_x + center_width - 192 - et.image.get_width()
+        
+        # always draw E.T.
+        et.draw(screen, spaceship if intro_sequence_active else None)
 
     # forest2 screen:
     elif game_state == "FOREST2":

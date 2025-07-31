@@ -35,7 +35,7 @@ class Spaceship:
         """calculates the target Y position of the spaceship to drop E.T. at the right place"""
         # target position for E.T.'s head: 230px from the top of the playable screen
         et_head_target_y = center_y + 230
-        # E.T. is at (23, 26) in the spaceship, so the spaceship should be at:
+        # E.T. is at (x: 23, y: 26) in the spaceship, so the spaceship should be at:
         self.target_y_for_drop = et_head_target_y - 26
         
     def get_et_position(self):
@@ -82,7 +82,7 @@ class Spaceship:
         return self.state != "HIDDEN"
     
     def reset_for_new_game(self, start_x, start_y):
-        """Resets the spaceship to its initial state for a new game"""
+        """resets the spaceship to its initial state for a new game"""
         self.x = start_x
         self.start_y = 71 - 100  # -29px from the top of the pygame window
         self.y = self.start_y

@@ -55,6 +55,7 @@ class ET:
         self.head_raise_counter = 0
         self.head_raise_sound = head_raise_sound
         self.head_raise_speed = 5 # animation speed
+        self.head_raise_just_started = False  # track when head raise starts
 
         # pit falling
         self.is_falling_into_pit = False
@@ -75,11 +76,18 @@ class ET:
         self.finish_frame = 4
         self.finish_counter = 0
 
+        # step tracking for counter
+        self.previous_x = x
+        self.previous_y = y
+        self.step_threshold = 1.0  # minimum distance to count as a step
+
     def set_controllable(self, controllable):
         # defines whether E.T. can be controlled by the player
         self.is_controllable = controllable
 
     def handle_input(self, keys, space_pressed_once):
+
+        result = None  # return value to indicate what action occurred
 
         # if E.T. is not yet controllable, ignore all inputs
         if not self.is_controllable:
@@ -91,7 +99,13 @@ class ET:
             return
 
         # block all movement when head raise animation is playing (except in pit)
-        if self.head_raise_active and not self.in_pit:
+        if self.head_raise_active and not self.in_pit and not self.is_falling_into_pit:
+            # check if head raise just started
+            if self.head_raise_just_started:
+                self.head_raise_just_started = False
+                result = "HEAD_RAISE"
+
+            # animate head raise frames with timing control
             self.head_raise_counter += 1
             if self.head_raise_counter >= self.head_raise_speed:
                 self.head_raise_counter = 0
@@ -106,33 +120,66 @@ class ET:
                     self.image = self.images["head_raise"][self.head_raise_frame]
             else:
                 self.image = self.images["head_raise"][self.head_raise_frame]
-            return
+            return result
 
         # handle falling into pit animation
         if self.is_falling_into_pit:
             self.walk_sound.stop()
             self.run_sound.stop()
-            self.image = self.images["idle"]
-            self.image = pygame.transform.flip(self.image, False, False)
             self.moving = False
-            self.y += self.pit_fall_speed
+            
+            # enable head_raise during fall
+            if space_pressed_once and not self.head_raise_active:
+                self.head_raise_active = True
+                self.head_raise_frame = 0
+                self.head_raise_counter = 0
+                self.head_raise_sound.play()
+                return "HEAD_RAISE"
+            
+            # handle head_raise animation during fall
+            if self.head_raise_active:
+                self.head_raise_counter += 1
+                if self.head_raise_counter >= self.head_raise_speed:
+                    self.head_raise_counter = 0
+                    self.head_raise_frame += 1
+                    
+                    # when we reach frame 3, then we stop the fall
+                    if self.head_raise_frame == 3:
+                        self.is_falling_into_pit = False
+                        self.in_pit = True
+                        self.rising_out_of_pit = True
+                        self.head_raise_active = False
+                        self.y -= 9 # # small visual jump when starting levitation
+                        return result
+                
+                self.image = self.images["head_raise"][self.head_raise_frame]
+                # keep falling during animation
+                self.y += self.pit_fall_speed
+            else:
+                # normal fall
+                self.image = self.images["idle"]
+                self.y += self.pit_fall_speed
 
             # check if E.T. has reached the bottom of the pit
             if self.y >= self.pit_target_y:
                 self.y = self.pit_target_y
                 self.is_falling_into_pit = False
                 self.in_pit = True
+                result = "FALL_COMPLETE"
 
             # flip image to right only if right key is held
             if keys[pygame.K_RIGHT]:
                 self.image = pygame.transform.flip(self.image, True, False)
             else:
                 self.image = pygame.transform.flip(self.image, False, False)
-            return
+            return result
 
         # handle levitation when trying to escape from pit
         if self.in_pit and self.rising_out_of_pit:
             self.image = self.head_locked_image  # always show head_raise_3
+
+            # store position before levitation movement
+            levitation_old_y = self.y
 
             # move up when up key is pressed (levitation)
             if keys[pygame.K_UP]:
@@ -140,6 +187,11 @@ class ET:
             # move down when down key is pressed (levitation)
             if keys[pygame.K_DOWN]:
                 self.y += self.levitation_speed
+
+            # check if levitation movement counts as a step
+            distance_moved_levitation = abs(self.y - levitation_old_y)
+            if distance_moved_levitation >= self.step_threshold - 0.5:
+                result = "STEP"
             
             # flip image to right temporarily
             if keys[pygame.K_RIGHT]:
@@ -161,8 +213,8 @@ class ET:
                 self.finishing_head_raise = True
                 self.finish_frame = 4
                 self.finish_counter = 0
-                return
-            return
+                return result
+            return result
 
         # pit movement and levitation setup
         if self.in_pit:
@@ -178,33 +230,9 @@ class ET:
                 self.head_raise_active = True
                 self.head_raise_frame = 0
                 self.head_raise_counter = 0
+                self.head_raise_just_started = True
                 self.head_raise_sound.play()
-                return
-
-            # if rising is in progress and head_raise_3.png was reached
-            if self.rising_out_of_pit:
-                self.image = self.head_locked_image
-
-                # move up during levitation
-                if keys[pygame.K_UP]:
-                    self.y -= self.levitation_speed
-                # move down but don't go below pit bottom
-                if keys[pygame.K_DOWN]:
-                    et_bottom_y = self.y
-                    if et_bottom_y + self.levitation_speed <= self.pit_bottom_y:
-                        self.y += self.levitation_speed
-
-                # flip image based on direction
-                if keys[pygame.K_RIGHT]:
-                    self.image = pygame.transform.flip(self.head_locked_image, True, False)
-                else:
-                    self.image = pygame.transform.flip(self.head_locked_image, False, False)
-
-                # escape if top of E.T. reaches top edge
-                if self.y <= self.pit_escape_y:
-                    self.rising_out_of_pit = False
-                    return "ESCAPE_PIT"
-                return
+                return "HEAD_RAISE"
 
         else:
             # normal movement speed (with boost when space is held)
@@ -217,12 +245,16 @@ class ET:
             self.walk_anim_speed = 3
             
         moving = False # adjust animation speed: faster when running
+
+        # store previous position for step detection
+        old_x, old_y = self.x, self.y
         
         # trigger head raise animation if standing still and pressing SPACE
         if space_pressed_once and not self.head_raise_active and not (keys[pygame.K_LEFT] or keys[pygame.K_RIGHT] or keys[pygame.K_UP] or keys[pygame.K_DOWN]):
             self.head_raise_active = True
             self.head_raise_frame = 0
             self.head_raise_counter = 0
+            self.head_raise_just_started = True
             self.head_raise_sound.play()
         
         # handle left/right movement
@@ -252,7 +284,14 @@ class ET:
             if keys[pygame.K_DOWN] and not self.in_pit:
                 self.y += current_speed
                 moving = True
-            
+                
+        # check if E.T. moved enough to count as a step (in the pit too)
+        if self.in_pit and not self.head_raise_active and not self.rising_out_of_pit:
+            distance_moved = ((self.x - old_x) ** 2 + (self.y - old_y) ** 2) ** 0.5
+            if distance_moved >= self.step_threshold:
+                if result is None:
+                    result = "STEP"
+
         self.update_animation(moving, keys)
 
         # play head raise animation if it's currently active
@@ -316,7 +355,7 @@ class ET:
                 if self.moving:
                     self.walk_sound.stop()
                     self.moving = False
-            return
+            return result
         else:
             if moving:
                 if not self.moving:
@@ -343,6 +382,14 @@ class ET:
                     self.moving = False
                     self.walk_sound.stop()
                     self.run_sound.stop()
+                    
+        # check if E.T. moved enough to count as a step
+        if not self.in_pit and not self.head_raise_active and result is None:
+            distance_moved = ((self.x - old_x) ** 2 + (self.y - old_y) ** 2) ** 0.5
+            if distance_moved >= self.step_threshold:
+                result = "STEP"
+
+        return result
 
     def update_animation(self, moving, keys):
         # switch frames when E.T. is moving

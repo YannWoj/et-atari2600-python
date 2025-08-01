@@ -8,6 +8,17 @@ Ce projet est un petit hommage à Howard Scott Warshaw, qui n’a eu que six sem
 
 ---
 
+## ©️ Credits / Crédits
+
+| Role                 | Name                 |
+| -------------------- | -------------------- |
+| Original Game        | Atari, Inc. (1982)   |
+| Designer             | Howard Scott Warshaw |
+| Artist               | Jerome Domurat       |
+| Python Remake Author | Yann W.              |
+
+---
+
 ## 📸 E.T. 👽 Preview
 
 ### Title

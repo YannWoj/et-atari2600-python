@@ -3,6 +3,7 @@ import pygame
 
 # colors
 PURPLE = (141, 18, 110)
+PURPLE_HOUSE = (51, 26, 163)
 BLUE = (0, 0, 138)
 LIGHT_BLUE = (106, 174, 237)
 LIGHT_BLUE2 = (90, 151, 221)
@@ -11,6 +12,7 @@ YELLOW = (176, 188, 83)
 DARK_GREEN = (0, 57, 0)
 LIGHT_GREEN = (71, 115, 35)
 BLACK = (0, 0, 0)
+GREY = (170, 170, 170)
 
 # rect heights
 PURPLE_HEIGHT = 47
@@ -28,6 +30,14 @@ def draw_background(screen, screen_width, screen_height, state):
         background_color = BLACK
         top_black = TITLE_TOP_BLACK_HEIGHT
         bottom_black = TITLE_BOTTOM_BLACK_HEIGHT
+    elif state == "BUILDING":
+        background_color = GREY
+        top_black = GAME_TOP_BLACK_HEIGHT
+        bottom_black = GAME_BOTTOM_BLACK_HEIGHT
+    elif state == "HOUSE":
+        background_color = PURPLE_HOUSE
+        top_black = GAME_TOP_BLACK_HEIGHT
+        bottom_black = GAME_BOTTOM_BLACK_HEIGHT
     else:
         background_color = DARK_GREEN
         top_black = GAME_TOP_BLACK_HEIGHT

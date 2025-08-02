@@ -11,6 +11,9 @@ from graphics import draw_background, draw_center_area, LIGHT_BLUE2_HEIGHT
 from player import ET
 from spaceship import Spaceship
 from counter import Counter
+from game_state_manager import GameStateManager
+from level_manager import LevelManager
+from audio_manager import AudioManager
 
 # constants
 SCREEN_WIDTH = 960
@@ -23,44 +26,21 @@ screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("E.T. the Extra-Terrestrial (Atari 2600 Remake)")
 clock = pygame.time.Clock()
 
-# images
-# title screen images
-et_head_title_image = pygame.image.load("assets/images/title/et_head_title.png")
-et_title_image = pygame.image.load("assets/images/title/et_title.png")
-copyright_title_image = pygame.image.load("assets/images/title/copyright_atari.png")
-
-# game screen images
-forest1_image = pygame.image.load("assets/images/forest/forest1.png")
-pit_image = pygame.image.load("assets/images/pit/pit.png")
-
-# music
-pygame.mixer.init()
-music_playing = False
-pygame.mixer.music.load("assets/music/title_music.wav")
-pygame.mixer.music.play(-1)  # -1 = infinite loop
-
-# sound effects
-# E.T.
-et_walk_sound = pygame.mixer.Sound("assets/sounds/E.T/walk.wav")
-et_run_sound = pygame.mixer.Sound("assets/sounds/E.T/run.wav")
-et_head_raise_sound = pygame.mixer.Sound("assets/sounds/E.T/head_raise.wav")
-et_head_raise_sound.set_volume(0.75)
-et_fall_sound = pygame.mixer.Sound("assets/sounds/E.T/fall.wav")
-# spaceship
-spaceship_sound = pygame.mixer.Sound("assets/sounds/spaceship/spaceship.wav")
-
-# game states (TITLE/FOREST1/FOREST2/FOREST3/FOREST4/FOREST5/FOREST6/BUILDING/PIT/HOUSE):
-game_state = "TITLE" # initial game state (start with title screen)
+# initialize managers
+game_state_manager = GameStateManager(screen, SCREEN_WIDTH, SCREEN_HEIGHT)
+level_manager = LevelManager()
+audio_manager = AudioManager()
 
 # load instances
-et = ET((SCREEN_WIDTH - 48) // 2, (SCREEN_HEIGHT - 48) // 2, et_walk_sound, et_run_sound, et_head_raise_sound)
+et = ET((SCREEN_WIDTH - 48) // 2, (SCREEN_HEIGHT - 48) // 2, 
+        audio_manager.get_sound("et_walk"), 
+        audio_manager.get_sound("et_run"), 
+        audio_manager.get_sound("et_head_raise"))
 spaceship = Spaceship((SCREEN_WIDTH - 96) // 2, 100)
 counter = Counter()
 
-# game state variables
-intro_sequence_active = False
-game_over = False
-
+# main loop
+running = True
 # main loop
 running = True
 while running:
@@ -77,260 +57,177 @@ while running:
     # get pressed keys
     keys = pygame.key.get_pressed()
 
+    # get current game state
+    current_state = game_state_manager.get_current_state()
+
     # handle different game screens
-    if game_state == "TITLE":
+    if current_state == "TITLE":
         # deactivate counter on title screen
         counter.deactivate()
-        # show title screen with E.T. logo
-        draw_background(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game_state)
-        draw_center_area(screen, SCREEN_WIDTH, "TITLE")
-
-        # get center area dimensions for positioning
-        center_x, center_y, center_width, center_height = draw_center_area(screen, SCREEN_WIDTH, "TITLE")
-
-        # draw E.T. title logo
-        et_title_rect = et_title_image.get_rect(midtop=(
-            center_x + center_width // 2 - 15,
-            center_y + 53
-        ))
-        screen.blit(et_title_image, et_title_rect)
-
-        # draw E.T. head image
-        et_head_title_rect = et_head_title_image.get_rect(midbottom=(
-            center_x + center_width // 2 - 4,
-            center_y + center_height - 63
-        ))
-        screen.blit(et_head_title_image, et_head_title_rect)
-
-        # draw copyright notice in bottom bar
-        copyright_rect = copyright_title_image.get_rect(
-            center=(
-                SCREEN_WIDTH // 2,
-                SCREEN_HEIGHT - LIGHT_BLUE2_HEIGHT // 2 
-            )
-        )
-        screen.blit(copyright_title_image, copyright_rect)
+        
+        # render title screen
+        game_state_manager.render_title_screen()
 
         # start music when entering title screen
-        if not music_playing:
-            pygame.mixer.music.load("assets/music/title_music.wav")
-            pygame.mixer.music.play(-1)
-            music_playing = True
+        if not audio_manager.is_music_playing():
+            audio_manager.play_music("title")
 
         # start game when space is pressed
         if keys[pygame.K_SPACE]:
-            game_state = "FOREST1"
-            pygame.mixer.music.stop()
-            music_playing = False
+            game_state_manager.change_state("FOREST1")
+            level_manager.set_level("FOREST1")
+            audio_manager.stop_music()
 
             # reset and activate counter for new game
             counter.reset()
             counter.activate()
-            game_over = False
+            game_state_manager.set_game_over(False)
 
             # play spaceship sound
-            spaceship_sound.play()
+            audio_manager.play_sound("spaceship")
             
             # initialize the intro sequence with the spaceship
-            intro_sequence_active = True
+            game_state_manager.set_intro_active(True)
             center_x, center_y, center_width, center_height = draw_center_area(screen, SCREEN_WIDTH, "FOREST1")
             spaceship.reset_for_new_game(center_x + (center_width - 96) // 2, center_y)
             
-            # initial position of E.T. in the ship
+            # initial position of e.t. in the ship
             et_x, et_y = spaceship.get_et_position()
             et.x = et_x
             et.y = et_y
-            
 
-    # forest1 screen:
-    elif game_state == "FOREST1":
-        draw_background(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game_state)
-        center_x, center_y, center_width, center_height = draw_center_area(screen, SCREEN_WIDTH, "FOREST1")
-        screen.blit(forest1_image, (center_x, center_y))
+    else:  # game states (forest1, forest2, etc.)
+        # render the current game screen
+        center_x, center_y, center_width, center_height = game_state_manager.render_game_screen(current_state, et, spaceship)
         
-        # manage spaceship intro sequence
-        if intro_sequence_active:
-            # update spaceship
+        # forest1 screen - handle intro sequence
+        if current_state == "FOREST1" and game_state_manager.is_intro_active():
+            # manage spaceship intro sequence
             spaceship.update(center_y)
             
-            # if E.T. is still in spaceship
+            # if e.t. is still in spaceship
             if spaceship.is_et_in_spaceship():
-                # E.T. follows spaceship
+                # e.t. follows spaceship
                 et_x, et_y = spaceship.get_et_position()
                 et.x = et_x
                 et.y = et_y
                 
-                # E.T. can only look right/left during descent
+                # e.t. can only look right/left during descent
                 if keys[pygame.K_RIGHT]:
                     et.image = pygame.transform.flip(et.images["idle"], True, False)
                 else:
                     et.image = et.images["idle"]  # look left by default
                     
             else:
-                # E.T. has been dropped, wait for spaceship to disappear
+                # e.t. has been dropped, wait for spaceship to disappear
                 if not spaceship.is_visible():
-                    intro_sequence_active = False
-                    # E.T. becomes controllable only when the ship has completely disappeared
+                    game_state_manager.set_intro_active(False)
+                    # e.t. becomes controllable only when the ship has completely disappeared
                     et.set_controllable(True)
                 
-                # E.T. can now be controlled normally
-                if not game_over:
+                # e.t. can now be controlled normally
+                if not game_state_manager.is_game_over():
                     result = et.handle_input(keys, space_pressed_once)
                     # handle counter decrements
                     if result == "STEP":
                         game_over = counter.decrement_step()
+                        game_state_manager.set_game_over(game_over)
                     elif result == "HEAD_RAISE":
                         game_over = counter.decrement_head_raise()
+                        game_state_manager.set_game_over(game_over)
                     elif result == "FALL_COMPLETE":
                         game_over = counter.decrement_fall()
+                        game_state_manager.set_game_over(game_over)
             
             # draw spaceship
             spaceship.draw(screen)
             
-        else:
-            # normal gameplay - E.T. is controllable
-            if not game_over:
+        # pit screen - e.t. can levitate to escape
+        elif current_state == "PIT":
+            if not game_state_manager.is_game_over():
                 result = et.handle_input(keys, space_pressed_once)
                 # handle counter decrements
                 if result == "STEP":
                     game_over = counter.decrement_step()
+                    game_state_manager.set_game_over(game_over)
                 elif result == "HEAD_RAISE":
                     game_over = counter.decrement_head_raise()
+                    game_state_manager.set_game_over(game_over)
                 elif result == "FALL_COMPLETE":
                     game_over = counter.decrement_fall()
-            
-            # check if E.T. walks off right edge to fall into pit
-            if et.x > center_x + center_width - et.image.get_width():
-                # position E.T. at top center of pit
-                et.x = center_x + (center_width - et.image.get_width()) // 2
-                et.y = center_y
+                    game_state_manager.set_game_over(game_over)
+                elif result == "ESCAPE_PIT":
+                    # return to the level specified in level manager
+                    escape_level = level_manager.get_next_level("escape")
+                    if escape_level:
+                        game_state_manager.change_state(escape_level)
+                        level_manager.set_level(escape_level)
+                        et.in_pit = False
+                        et.rising_out_of_pit = False
+                        # position e.t. at center of new level
+                        et.x = center_x + (center_width - et.image.get_width()) // 2
+                        et.y = center_y + (center_height - et.image.get_height()) // 2
 
-                # reset position and start falling animation
-                et.x = center_x + (center_width - et.image.get_width()) // 2
-                et.y = center_y
-                et.is_falling_into_pit = True
-                et.pit_target_y = center_y + 360 - et.image.get_height()
-
-                # set pit boundaries
-                et.pit_escape_y = center_y  # top edge for escaping
-                et.pit_bottom_y = center_y + 360  # bottom platform
-                et.rising_out_of_pit = False
-
-                # switch to pit screen
-                et_fall_sound.play()
-                game_state = "PIT"
-                
-                # set horizontal movement limits inside pit
-                et.pit_left_limit = center_x + 192
-                et.pit_right_limit = center_x + center_width - 192 - et.image.get_width()
-        
-        # always draw E.T.
-        et.draw(screen, spaceship if intro_sequence_active else None)
-
-    # forest2 screen:
-    elif game_state == "FOREST2":
-        draw_background(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game_state)
-        draw_center_area(screen, SCREEN_WIDTH, "FOREST2")
-        if not game_over:
-            result = et.handle_input(keys, space_pressed_once)
-            # handle counter decrements
-            if result == "STEP":
-                game_over = counter.decrement_step()
-            elif result == "HEAD_RAISE":
-                game_over = counter.decrement_head_raise()
-        et.draw(screen)
-
-    # forest3 screen:
-    elif game_state == "FOREST3":
-        draw_background(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game_state)
-        draw_center_area(screen, SCREEN_WIDTH, "FOREST3")
-        if not game_over:
-            result = et.handle_input(keys, space_pressed_once)
-            # handle counter decrements
-            if result == "STEP":
-                game_over = counter.decrement_step()
-            elif result == "HEAD_RAISE":
-                game_over = counter.decrement_head_raise()
-        et.draw(screen)
-
-    # forest4 screen:
-    elif game_state == "FOREST4":
-        draw_background(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game_state)
-        draw_center_area(screen, SCREEN_WIDTH, "FOREST4")
-        if not game_over:
-            result = et.handle_input(keys, space_pressed_once)
-            # handle counter decrements
-            if result == "STEP":
-                game_over = counter.decrement_step()
-            elif result == "HEAD_RAISE":
-                game_over = counter.decrement_head_raise()
-        et.draw(screen)
-
-    # forest5 screen:
-    elif game_state == "FOREST5":
-        draw_background(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game_state)
-        draw_center_area(screen, SCREEN_WIDTH, "FOREST5")
-        if not game_over:
-            result = et.handle_input(keys, space_pressed_once)
-            # handle counter decrements
-            if result == "STEP":
-                game_over = counter.decrement_step()
-            elif result == "HEAD_RAISE":
-                game_over = counter.decrement_head_raise()
-        et.draw(screen)
-
-    # building screen:
-    elif game_state == "BUILDING":
-        draw_background(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game_state)
-        draw_center_area(screen, SCREEN_WIDTH, "BUILDING")
-        if not game_over:
-            result = et.handle_input(keys, space_pressed_once)
-            # handle counter decrements
-            if result == "STEP":
-                game_over = counter.decrement_step()
-            elif result == "HEAD_RAISE":
-                game_over = counter.decrement_head_raise()
-        et.draw(screen)
-
-    # pit screen  - E.T. can levitate to escape:
-    elif game_state == "PIT":
-        draw_background(screen, SCREEN_WIDTH, SCREEN_HEIGHT, "TITLE")  # TITLE to get black borders
-        center_x, center_y, center_width, center_height = draw_center_area(screen, SCREEN_WIDTH, "PIT")
-        screen.blit(pit_image, (center_x, center_y))
-        if not game_over:
-            result = et.handle_input(keys, space_pressed_once)
-            # handle counter decrements
-            if result == "STEP":
-                game_over = counter.decrement_step()
-            elif result == "HEAD_RAISE":
-                game_over = counter.decrement_head_raise()
-            elif result == "FALL_COMPLETE":
-                game_over = counter.decrement_fall()
+        # handle all other game states (forest1 normal gameplay, forest2, forest3, forest4, forest5, building, house)
         else:
-            result = None
-            
-        # handle pit escape - return to forest when E.T. exits the pit
-        if result == "ESCAPE_PIT":
-            game_state = "FOREST2"
-            et.in_pit = False
-            et.rising_out_of_pit = False
-        et.draw(screen)
+            if not game_state_manager.is_game_over():
+                result = et.handle_input(keys, space_pressed_once)
+                
+                # handle counter decrements
+                if result == "STEP":
+                    game_over = counter.decrement_step()
+                    game_state_manager.set_game_over(game_over)
+                elif result == "HEAD_RAISE":
+                    game_over = counter.decrement_head_raise()
+                    game_state_manager.set_game_over(game_over)
+                elif result == "FALL_COMPLETE":
+                    game_over = counter.decrement_fall()
+                    game_state_manager.set_game_over(game_over)
 
-    # house screen:
-    elif game_state == "HOUSE":
-        draw_background(screen, SCREEN_WIDTH, SCREEN_HEIGHT, game_state)
-        draw_center_area(screen, SCREEN_WIDTH, "HOUSE")
-        et.handle_input(keys, space_pressed_once)
-        et.draw(screen)
+                # check if ET stepped on a pit
+                if level_manager.has_pit_at_position(
+                    et.x - center_x, et.y - center_y,
+                    et.image.get_width(), et.image.get_height()
+                ):
+                    game_state_manager.change_state("PIT", et=et)
+                    level_manager.set_level("PIT")
+                    et.setup_pit_fall(center_x, center_y, center_width, center_height)
+                    audio_manager.play_sound("et_fall")
+
+                # general level transition system for other levels
+                transition = level_manager.check_level_boundaries(
+                    et.x, et.y, et.image.get_width(), et.image.get_height(),
+                    center_x, center_y, center_width, center_height
+                )
+                    
+                if transition:
+                    if level_manager.change_level(transition):
+                        new_level = level_manager.get_current_level()
+                        game_state_manager.change_state(new_level)
+                            
+                        # position e.t. according to the direction he came from
+                        opposite_direction = {
+                            "right": "right", "left": "left", 
+                            "up": "up", "down": "down"
+                        }
+                        spawn_direction = opposite_direction.get(transition, "center")
+                        spawn_x, spawn_y = level_manager.get_spawn_position(
+                            spawn_direction, center_x, center_y, center_width, center_height,
+                            et.image.get_width(), et.image.get_height()
+                        )
+                        et.reset_for_level_transition(spawn_x, spawn_y)
+        
+        # always draw e.t.
+        et.draw(screen, spaceship if (current_state == "FOREST1" and game_state_manager.is_intro_active()) else None)
 
     # draw counter (only appears in game screens, not title)
     counter.draw(screen, SCREEN_WIDTH, SCREEN_HEIGHT, LIGHT_BLUE2_HEIGHT)
 
     # handle game over
-    if game_over:
-        # stop E.T. sounds
-        et_walk_sound.stop()
-        et_run_sound.stop()
+    if game_state_manager.is_game_over():
+        # stop e.t. sounds
+        audio_manager.stop_sound("et_walk")
+        audio_manager.stop_sound("et_run")
 
     # update display and maintain framerate
     pygame.display.flip()

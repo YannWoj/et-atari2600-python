@@ -407,6 +407,32 @@ class ET:
         # flip image horizontally when moving right
         if keys[pygame.K_RIGHT]:
             self.image = pygame.transform.flip(self.image, True, False)
+            
+    def setup_pit_fall(self, center_x, center_y, center_width, center_height):
+        """Configure les paramètres pour la chute dans le pit"""
+        self.x = center_x + (center_width - self.image.get_width()) // 2
+        self.y = center_y
+        self.is_falling_into_pit = True
+        self.pit_target_y = center_y + 360 - self.image.get_height()
+        self.pit_escape_y = center_y
+        self.pit_bottom_y = center_y + 360
+        self.pit_left_limit = center_x + 192
+        self.pit_right_limit = center_x + center_width - 192 - self.image.get_width()
+        self.rising_out_of_pit = False
+
+    def reset_for_level_transition(self, new_x, new_y):
+        """Reset E.T. pour une transition de niveau"""
+        self.x = new_x
+        self.y = new_y
+        self.in_pit = False
+        self.is_falling_into_pit = False
+        self.rising_out_of_pit = False
+        self.head_raise_active = False
+        self.finishing_head_raise = False
+        self.image = self.images["idle"]
+        self.walk_sound.stop()
+        self.run_sound.stop()
+        self.moving = False
 
     def draw(self, screen, spaceship=None):
         # if E.T. is in the spaceship during intro, apply the same clipping

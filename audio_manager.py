@@ -12,6 +12,7 @@ class AudioManager:
             "et_run": pygame.mixer.Sound("assets/sounds/E.T/run.wav"),
             "et_head_raise": pygame.mixer.Sound("assets/sounds/E.T/head_raise.wav"),
             "et_fall": pygame.mixer.Sound("assets/sounds/E.T/fall.wav"),
+            "et_head_raise_levitating": pygame.mixer.Sound("assets/sounds/E.T/head_raise_levitating.wav"),
             
             # spaceship sounds
             "spaceship": pygame.mixer.Sound("assets/sounds/spaceship/spaceship.wav")
